@@ -238,14 +238,8 @@ public class CassandraVerifier {
                 }
                 int majorVersion = Integer.parseInt(components[0]);
                 int minorVersion = Integer.parseInt(components[1]);
-                int patchVersion = Integer.parseInt(components[2]);
 
-                // see cassandra's 'interface/cassandra.thrift'
-                if (majorVersion >= 19 && minorVersion >= 37 && patchVersion >= 0) {
-                    return true;
-                } else {
-                    return false;
-                }
+                return majorVersion > 19 || (majorVersion == 19 && minorVersion >= 37);
             } catch (TException e) {
                 throw new UnsupportedOperationException("Couldn't determine underlying cassandra version; received an exception while checking the thrift version.", e);
             }
