@@ -30,9 +30,6 @@ public class CassandraDbLockTest extends AbstractCassandraLockTest {
     @Override
     public void setUp() {
         super.setUp();
-
-        kvs.supportsCAS = true;
-        slowTimeoutKvs.supportsCAS = true;
     }
 
     @Ignore
