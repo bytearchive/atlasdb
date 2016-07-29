@@ -1127,8 +1127,8 @@ public class CassandraKeyValueService extends AbstractKeyValueService {
      */
     @Override
     public void createTables(final Map<TableReference, byte[]> tableNamesToTableMetadata) {
-     //   long lockId = waitForSchemaMutationLock();
-   //     System.out.println("Got lockId " + lockId);
+        long lockId = waitForSchemaMutationLock();
+        System.out.println("Got lockId " + lockId);
 
         try {
             clientPool.runWithRetry(new FunctionCheckedException<Client, Void, Exception>() {
@@ -1187,7 +1187,7 @@ public class CassandraKeyValueService extends AbstractKeyValueService {
         } catch (Exception e) {
             throw Throwables.throwUncheckedException(e);
         } finally {
- //           schemaMutationUnlock(lockId);
+            schemaMutationUnlock(lockId);
         }
 
         internalPutMetadataForTables(tableNamesToTableMetadata, false);

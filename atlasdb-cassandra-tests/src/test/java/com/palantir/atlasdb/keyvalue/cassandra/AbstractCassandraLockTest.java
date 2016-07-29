@@ -16,8 +16,12 @@
 package com.palantir.atlasdb.keyvalue.cassandra;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -44,9 +48,12 @@ import com.palantir.atlasdb.cassandra.ImmutableCassandraKeyValueServiceConfig;
 import com.palantir.atlasdb.encoding.PtBytes;
 import com.palantir.atlasdb.keyvalue.api.Cell;
 import com.palantir.atlasdb.keyvalue.api.TableReference;
+import com.palantir.atlasdb.keyvalue.api.Value;
 
 abstract public class AbstractCassandraLockTest {
     protected static final long GLOBAL_DDL_LOCK_NEVER_ALLOCATED_VALUE = Long.MAX_VALUE - 1;
+    private final Cell TABLE_CELL = Cell.create(PtBytes.toBytes("row0"), PtBytes.toBytes("col0"));
+    private final byte[] TABLE_VALUE = PtBytes.toBytes("xyz");
     protected CassandraKeyValueService kvs;
     protected CassandraKeyValueService slowTimeoutKvs;
     private final ExecutorService executorService = Executors.newFixedThreadPool(4);
@@ -134,8 +141,24 @@ abstract public class AbstractCassandraLockTest {
     }
 
     @Test
-    public void testCreatingMultipleTablesAtOnce() throws InterruptedException {
-        int threadCount = 20;
+    public void testCreatingMultipleTablesAtOnceLessThreads() throws InterruptedException {
+        int successes = creatingMultipleTablesAtOnce(20);
+        assertThat(successes, is(20));
+        Map<Cell, Value> cellValueMap = putAndGetData();
+        assertThat(cellValueMap, hasKey(TABLE_CELL));
+        kvs.dropTable(GOOD_TABLE);
+    }
+
+    @Test
+    public void testCreatingMultipleTablesAtOnceMoreThreads() throws InterruptedException {
+        int successes = creatingMultipleTablesAtOnce(60);
+        assertThat(successes, is(60));
+        Map<Cell, Value> cellValueMap = putAndGetData();
+        assertThat(cellValueMap, hasKey(TABLE_CELL));
+        kvs.dropTable(GOOD_TABLE);
+    }
+
+    private int creatingMultipleTablesAtOnce(int threadCount) throws InterruptedException {
         CyclicBarrier barrier = new CyclicBarrier(threadCount);
         ForkJoinPool threadPool = new ForkJoinPool(threadCount);
 
@@ -154,15 +177,14 @@ abstract public class AbstractCassandraLockTest {
             });
         });
 
-        slowTimeoutKvs.put(GOOD_TABLE, ImmutableMap.of(Cell.create(PtBytes.toBytes("row0"), PtBytes.toBytes("col0")), PtBytes.toBytes(42)), 123);
+        threadPool.shutdown();
+        threadPool.awaitTermination(2L, TimeUnit.MINUTES);
+        return successes.get();
+    }
 
-        try {
-            threadPool.shutdown();
-            threadPool.awaitTermination(2L, TimeUnit.MINUTES);
-        } finally {
-//            slowTimeoutKvs.dropTable(GOOD_TABLE);
-            assertThat(successes.get(), is(threadCount));
-        }
+    private Map<Cell, Value> putAndGetData() {
+        slowTimeoutKvs.put(GOOD_TABLE, ImmutableMap.of(TABLE_CELL, TABLE_VALUE), 123L);
+        return slowTimeoutKvs.get(GOOD_TABLE, ImmutableMap.of(Cell.create(PtBytes.toBytes("row0"), PtBytes.toBytes("col0")), 130L));
     }
 
     protected Future async(Runnable callable) {
